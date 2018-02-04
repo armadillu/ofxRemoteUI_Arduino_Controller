@@ -8,12 +8,12 @@
 #include "RotaryEncoder.h"
 
 #define NUM_KNOBS 			8
-#define NUM_BUTTONS 		4
+#define NUM_BUTTONS 		8
 
 #define MAX_KNOB_VALUE 		200	
 #define MIDI_CHANNEL_OUT	4
 
-#define ENABLE_BLE_MIDI		true
+#define ENABLE_BLE_MIDI		false
 #define DEBUG_OVER_SERIAL 	true
 
 // Create a new instance of the Arduino MIDI Library,
@@ -41,7 +41,7 @@ struct ButtonData{
 
 KnobData knobs[NUM_KNOBS];
 ButtonData buttons[NUM_BUTTONS];
-unsigned char buttonPins[] = {16,15,7,11};
+unsigned char buttonPins[] = {16,15,7,11,27,12,13,14};
 
 void setup(){
 	
@@ -202,16 +202,18 @@ void midiRead(){
 
 void updateScreen(){
 	display.clearDisplay();
-	static char aux[4][256];
+	static char aux[4][40];
 	display.setTextSize(1);
 	display.setTextColor(WHITE);
 	sprintf(aux[0], "Knob %03d %03d %03d %03d", knobs[0].displayValue, knobs[1].displayValue, knobs[2].displayValue, knobs[3].displayValue);
 	sprintf(aux[1], "Knob %03d %03d %03d %03d", knobs[4].displayValue, knobs[5].displayValue, knobs[6].displayValue, knobs[7].displayValue);
 	sprintf(aux[2], "btns  %d   %d   %d   %d ", buttons[0].value, buttons[1].value, buttons[2].value, buttons[3].value);
+	sprintf(aux[3], "btns  %d   %d   %d   %d ", buttons[4].value, buttons[5].value, buttons[6].value, buttons[7].value);
 	int y = 0;
-	display.setCursor(0,y); display.print("#### ofxRemoteUI ####"); y += 9;
+	//display.setCursor(0,y); display.print("#### ofxRemoteUI ####"); y += 9;
 	display.setCursor(0,y); display.print(aux[0]); y += 8;
 	display.setCursor(0,y); display.print(aux[1]); y += 8;
 	display.setCursor(0,y); display.print(aux[2]); y += 8;
+	display.setCursor(0,y); display.print(aux[3]); y += 8;
 	display.display(); // actually display all of the above
 }
