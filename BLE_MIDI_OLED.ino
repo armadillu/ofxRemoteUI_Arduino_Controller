@@ -5,16 +5,19 @@
 #include <bluefruit.h>
 #include <MIDI.h>
 #include "DisplaySetup.h"
-#include "RotaryEncoder.h"
 
 #define NUM_KNOBS 			8
 #define NUM_BUTTONS 		8
 
-#define MAX_KNOB_VALUE 		200	
+#define MAX_KNOB_VALUE 		935 /*1023*/
+#define MAX_KNOB_MIDI_VALUE 127
 #define MIDI_CHANNEL_OUT	4
+
+#define KNOB_DIFF_VAL_THRESHOLD 	15
 
 #define ENABLE_BLE_MIDI		false
 #define DEBUG_OVER_SERIAL 	true
+#define ENABLE_DISPLAY		true
 
 // Create a new instance of the Arduino MIDI Library,
 // and attach BluefruitLE MIDI as the transport.
@@ -28,46 +31,54 @@ Adafruit_SSD1306 display = Adafruit_SSD1306();
 #include "BluetoothSetup.h"
 #include "Utils.h"
 
-struct KnobData{
-	bool needsUpdate = true;
-	int value = 0;
-	int displayValue;
-};
-
 struct ButtonData{
 	unsigned char pin;
 	bool value = false;
 };
 
+struct KnobData{
+	int value = 0; //0..1023
+	int midiValue;
+	unsigned char pin;
+};
+
+
 KnobData knobs[NUM_KNOBS];
 ButtonData buttons[NUM_BUTTONS];
+
+//pin configs
 unsigned char buttonPins[] = {16,15,7,11,27,12,13,14};
+unsigned char knobPins[] = {2,3,4,5,28,29,31,30};
 
 void setup(){
 	
 	Serial.begin(115200);
 	Serial.println("ofxRemoteUI Remote Controller");
 	Serial.println("----------------------------------------------\n");
-
+	
+	#if (ENABLE_DISPLAY)
 	display.begin(SSD1306_SWITCHCAPVCC, 0x3C);	// initialize with the I2C addr 0x3C (for the 128x32)
 	Serial.println("OLED setup");
+	#endif
 	
-	RotaryEncoder.begin(A1, A0);
-	RotaryEncoder.setCallback(encoder_callback);
-	//RotaryEncoder.start();
-	Serial.println("Rotary Encoder setup");
-
+	
 	for(int i = 0; i < NUM_BUTTONS; i++){
 		buttons[i].pin = buttonPins[i];
 		pinMode(buttons[i].pin, INPUT_PULLUP);
 	}
 	
+	for(int i = 0; i < NUM_KNOBS; i++){
+		knobs[i].pin = knobPins[i];
+	}
+
+	#if (ENABLE_DISPLAY)
 	// Clear the buffer.
 	display.display();
 	delay(1000);
 	display.clearDisplay();
 	display.display();
 	Serial.println("Display cleared");
+	#endif
 
 	/// MIDI /////////////////////////////////////////////////////////////////////////////
 	// Config the peripheral connection with maximum bandwidth 
@@ -100,7 +111,7 @@ void setup(){
 		Serial.println("Scheduler started");
 	#endif
 
-	//display ready
+	#if (ENABLE_DISPLAY)
 	display.setTextSize(1);
 	display.setTextColor(WHITE);
 	display.setCursor(0,0);
@@ -109,6 +120,7 @@ void setup(){
 	display.println("Waiting For Bluetooth");
 	display.println("Connection...");
 	display.display(); // actually display all of the above
+	#endif
 }
 
 
@@ -125,19 +137,6 @@ void handleNoteOff(byte channel, byte pitch, byte velocity){
 	Serial.println();
 	printDisplayMsg("NOTE OFF!");
 }
-
-
-void encoder_callback(int step){
-	knobs[0].value += step;
-	if(knobs[0].value < 0) knobs[0].value = 0;
-	if(knobs[0].value >= MAX_KNOB_VALUE ) knobs[0].value = MAX_KNOB_VALUE - 1;
-	knobs[0].needsUpdate = true;
-	knobs[0].displayValue = (int)(float(100.0f) * float(knobs[0].value) / float(MAX_KNOB_VALUE - 1));
-	#if (DEBUG_OVER_SERIAL)
-	Serial.printf("knob %d val: %d", 0, knobs[0].value); Serial.println();
-	#endif
-}
-
 
 void loop() {
 
@@ -178,19 +177,26 @@ void loop() {
 	}
 
 	//handle KNOB UPDATES
-	for(int i = 0; i < 1; i++){
-		if(knobs[i].needsUpdate){
-			knobs[i].needsUpdate = false;
+	for(int i = 0; i < NUM_KNOBS; i++){
+		int newVal = analogRead(knobs[i].pin);
+		if(abs(knobs[i].value - newVal) > KNOB_DIFF_VAL_THRESHOLD){
+			knobs[i].value = newVal;
+			if(knobs[i].value < 0) knobs[i].value = 0;
+			if(knobs[i].value > MAX_KNOB_VALUE ) knobs[i].value = MAX_KNOB_VALUE;
+			knobs[i].midiValue = (int)(float(MAX_KNOB_MIDI_VALUE * knobs[i].value) / float(MAX_KNOB_VALUE));
+			if(knobs[i].midiValue > MAX_KNOB_MIDI_VALUE ) knobs[i].midiValue = MAX_KNOB_MIDI_VALUE;
 			#if(ENABLE_BLE_MIDI)
-			MIDI.sendControlChange(20 + i, knobs[i].value, MIDI_CHANNEL_OUT);	//20 as undefined
+			MIDI.sendControlChange(20 + i, knobs[i].midiValue, MIDI_CHANNEL_OUT);	//20 as undefined
 			#endif
 			screenNeedsUpdate = true;
 		}
 	}
 
+	#if (ENABLE_DISPLAY)
 	if(screenNeedsUpdate){
 		updateScreen();
 	}
+	#endif
 }
 
 
@@ -205,8 +211,8 @@ void updateScreen(){
 	static char aux[4][40];
 	display.setTextSize(1);
 	display.setTextColor(WHITE);
-	sprintf(aux[0], "Knob %03d %03d %03d %03d", knobs[0].displayValue, knobs[1].displayValue, knobs[2].displayValue, knobs[3].displayValue);
-	sprintf(aux[1], "Knob %03d %03d %03d %03d", knobs[4].displayValue, knobs[5].displayValue, knobs[6].displayValue, knobs[7].displayValue);
+	sprintf(aux[0], "Knob %03d %03d %03d %03d", knobs[0].midiValue, knobs[1].midiValue, knobs[2].midiValue, knobs[3].midiValue);
+	sprintf(aux[1], "Knob %03d %03d %03d %03d", knobs[4].midiValue, knobs[5].midiValue, knobs[6].midiValue, knobs[7].midiValue);
 	sprintf(aux[2], "btns  %d   %d   %d   %d ", buttons[0].value, buttons[1].value, buttons[2].value, buttons[3].value);
 	sprintf(aux[3], "btns  %d   %d   %d   %d ", buttons[4].value, buttons[5].value, buttons[6].value, buttons[7].value);
 	int y = 0;
