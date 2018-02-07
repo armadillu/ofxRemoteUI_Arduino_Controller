@@ -13,11 +13,11 @@
 #define MAX_KNOB_MIDI_VALUE 127
 #define MIDI_CHANNEL_OUT	4
 
-#define KNOB_DIFF_VAL_THRESHOLD 	15
+#define KNOB_DIFF_VAL_THRESHOLD 	9
 
-#define ENABLE_BLE_MIDI		false
+#define ENABLE_BLE_MIDI		true
 #define DEBUG_OVER_SERIAL 	true
-#define ENABLE_DISPLAY		true
+#define ENABLE_DISPLAY		false
 
 // Create a new instance of the Arduino MIDI Library,
 // and attach BluefruitLE MIDI as the transport.
@@ -140,7 +140,7 @@ void handleNoteOff(byte channel, byte pitch, byte velocity){
 
 void loop() {
 
-	delay(50);
+	delay(16);
 	
 	#if ENABLE_BLE_MIDI
 		if (! Bluefruit.connected()) { return; }
