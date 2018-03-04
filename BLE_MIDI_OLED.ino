@@ -59,7 +59,7 @@ unsigned int frameCount = 0;
 
 void setup(){
 
-  frameCount = 0;
+	frameCount = 0;
   
 	Serial.begin(115200);
 	Serial.println("ofxRemoteUI Remote Controller");
@@ -75,7 +75,7 @@ void setup(){
 		pinMode(buttons[i].pin, INPUT_PULLUP);
 	}
 
-  pinMode(powerLedPin , OUTPUT);
+  	pinMode(powerLedPin, OUTPUT);
 	
 	for(int i = 0; i < NUM_KNOBS; i++){
 		knobs[i].pin = knobPins[i];
@@ -122,42 +122,27 @@ void setup(){
 	#endif
 
 	#if (ENABLE_DISPLAY)
-	display.setTextSize(1);
-	display.setTextColor(WHITE);
-	display.setCursor(0,0);
-	display.println("ofxRemoteUI Ready!");
-	display.println();
-	display.println("Waiting For Bluetooth");
-	display.println("Connection...");
-	display.display(); // actually display all of the above
+		display.setTextSize(1);
+		display.setTextColor(WHITE);
+		display.setCursor(0,0);
+		display.println("ofxRemoteUI Ready!");
+		display.println();
+		display.println("Waiting For Bluetooth");
+		display.println("Connection...");
+		display.display(); // actually display all of the above
 	#endif
-}
-
-
-void handleNoteOn(byte channel, byte pitch, byte velocity){
-	Serial.printf("Note on: channel = %d, pitch = %d, velocity - %d", channel, pitch, velocity);
-	Serial.println();
-	printDisplayMsg("NOTE ON!");
-}
-
-
-void handleNoteOff(byte channel, byte pitch, byte velocity){
-	// Log when a note is released.
-	Serial.printf("Note off: channel = %d, pitch = %d, velocity - %d", channel, pitch, velocity);
-	Serial.println();
-	printDisplayMsg("NOTE OFF!");
 }
 
 void handleStatusLight(){
 	int val = 0;
 	if(Bluefruit.connected()){ //device connected!
   		if(blemidi.notifyEnabled()){ //ready to rx msgs
-  			val = (frameCount%10 > 5) ? 255 : 0; //fast blink if device connected and ready
+  			val = 255; //steady on if connected
   		}else{ //not ready
-  			val = (frameCount%40 > 20) ? 255 : 0; //slow blink if device connected and not ready
+  			val = (frameCount%60 > 30) ? 255 : 0; //slow blink if device connected and not ready
   		}
 	}else{ //no bluetooth connection
-		int val = 127 + 127 * sin(frameCount); //slow pulse if no connection
+		val = 127 + 127 * sin(frameCount * 0.05); //slow pulse if no connection
 	}
 	analogWrite(powerLedPin, val); 
 }
@@ -254,4 +239,18 @@ void updateScreen(){
 	display.setCursor(0,y); display.print(aux[2]); y += 8;
 	display.setCursor(0,y); display.print(aux[3]); y += 8;
 	display.display(); // actually display all of the above
+}
+
+void handleNoteOn(byte channel, byte pitch, byte velocity){
+	Serial.printf("Note on: channel = %d, pitch = %d, velocity - %d", channel, pitch, velocity);
+	Serial.println();
+	printDisplayMsg("NOTE ON!");
+}
+
+
+void handleNoteOff(byte channel, byte pitch, byte velocity){
+	// Log when a note is released.
+	Serial.printf("Note off: channel = %d, pitch = %d, velocity - %d", channel, pitch, velocity);
+	Serial.println();
+	printDisplayMsg("NOTE OFF!");
 }
