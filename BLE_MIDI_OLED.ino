@@ -7,17 +7,21 @@
 #include "DisplaySetup.h"
 
 #define NUM_KNOBS 			8
-#define NUM_BUTTONS 		8
+#define NUM_BUTTONS 		9 /* 7 top-buttons + 2 side-buttons */
 
 #define MAX_KNOB_VALUE 		935 /*1023*/
 #define MAX_KNOB_MIDI_VALUE 127
 #define MIDI_CHANNEL_OUT	4
 
-#define KNOB_DIFF_VAL_THRESHOLD 	9
+#define KNOB_DIFF_VAL_THRESHOLD 	7
 
-#define ENABLE_BLE_MIDI		true
-#define DEBUG_OVER_SERIAL 	true
-#define ENABLE_DISPLAY		false
+////////////////////////////////////// CONFIG //////////////////////////////////////////////
+
+#define ENABLE_BLE_MIDI			true
+#define DEBUG_OVER_SERIAL 		false
+#define ENABLE_DISPLAY			false
+
+/////////////////////////////////////////////////////////////////////////////////////////////
 
 // Create a new instance of the Arduino MIDI Library,
 // and attach BluefruitLE MIDI as the transport.
@@ -46,12 +50,17 @@ struct KnobData{
 KnobData knobs[NUM_KNOBS];
 ButtonData buttons[NUM_BUTTONS];
 
-//pin configs
-unsigned char buttonPins[] = {16,15,7,11,27,12,13,14};
-unsigned char knobPins[] = {2,3,4,5,28,29,31,30};
+//pin configs                 b0  b1  b2 b3  b4  b5  b6  Nex Sync
+unsigned char buttonPins[] = {16, 15, 7, 11, 27, 12, 13, 26, 25}; //8 is sync midi; 14 is nextSlot
+unsigned char knobPins[] = {2, 3, 4, 5, 28, 29, 30, 31};
+unsigned char powerLedPin = 14; //power & bluetooth state LED
+unsigned int frameCount = 0;
+
 
 void setup(){
-	
+
+  frameCount = 0;
+  
 	Serial.begin(115200);
 	Serial.println("ofxRemoteUI Remote Controller");
 	Serial.println("----------------------------------------------\n");
@@ -60,12 +69,13 @@ void setup(){
 	display.begin(SSD1306_SWITCHCAPVCC, 0x3C);	// initialize with the I2C addr 0x3C (for the 128x32)
 	Serial.println("OLED setup");
 	#endif
-	
-	
+		
 	for(int i = 0; i < NUM_BUTTONS; i++){
 		buttons[i].pin = buttonPins[i];
 		pinMode(buttons[i].pin, INPUT_PULLUP);
 	}
+
+  pinMode(powerLedPin , OUTPUT);
 	
 	for(int i = 0; i < NUM_KNOBS; i++){
 		knobs[i].pin = knobPins[i];
@@ -138,13 +148,32 @@ void handleNoteOff(byte channel, byte pitch, byte velocity){
 	printDisplayMsg("NOTE OFF!");
 }
 
+void handleStatusLight(){
+	int val = 0;
+	if(Bluefruit.connected()){ //device connected!
+  		if(blemidi.notifyEnabled()){ //ready to rx msgs
+  			val = (frameCount%10 > 5) ? 255 : 0; //fast blink if device connected and ready
+  		}else{ //not ready
+  			val = (frameCount%40 > 20) ? 255 : 0; //slow blink if device connected and not ready
+  		}
+	}else{ //no bluetooth connection
+		int val = 127 + 127 * sin(frameCount); //slow pulse if no connection
+	}
+	analogWrite(powerLedPin, val); 
+}
+
 void loop() {
 
 	delay(16);
-	
+
+	frameCount++;
+    
 	#if ENABLE_BLE_MIDI
-		if (! Bluefruit.connected()) { return; }
-		if (! blemidi.notifyEnabled()) { return; }
+	    handleStatusLight();
+		if (!Bluefruit.connected()) { return; }  // Don't continue if we aren't connected.
+		if (!blemidi.notifyEnabled()) { return; }   // Don't continue if the connected device isn't ready to receive messages.
+	#else
+		analogWrite(powerLedPin, 255); //led always on if not on bluetooth mode
 	#endif
 
 	bool screenNeedsUpdate = false;
@@ -185,6 +214,9 @@ void loop() {
 			if(knobs[i].value > MAX_KNOB_VALUE ) knobs[i].value = MAX_KNOB_VALUE;
 			knobs[i].midiValue = (int)(float(MAX_KNOB_MIDI_VALUE * knobs[i].value) / float(MAX_KNOB_VALUE));
 			if(knobs[i].midiValue > MAX_KNOB_MIDI_VALUE ) knobs[i].midiValue = MAX_KNOB_MIDI_VALUE;
+      #if (DEBUG_OVER_SERIAL)
+          Serial.printf("Knob %d : %d", i, knobs[i].midiValue); Serial.println();
+      #endif
 			#if(ENABLE_BLE_MIDI)
 			MIDI.sendControlChange(20 + i, knobs[i].midiValue, MIDI_CHANNEL_OUT);	//20 as undefined
 			#endif
