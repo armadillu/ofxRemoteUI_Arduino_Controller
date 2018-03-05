@@ -9,11 +9,11 @@
 #define NUM_KNOBS 			8
 #define NUM_BUTTONS 		9 /* 7 top-buttons + 2 side-buttons */
 
-#define MAX_KNOB_VALUE 		935 /*1023*/
+#define MAX_KNOB_VALUE 		940 /*1023*/
 #define MAX_KNOB_MIDI_VALUE 127
 #define MIDI_CHANNEL_OUT	4
 
-#define KNOB_DIFF_VAL_THRESHOLD 	7
+#define KNOB_DIFF_VAL_THRESHOLD 	9
 
 ////////////////////////////////////// CONFIG //////////////////////////////////////////////
 
@@ -192,18 +192,20 @@ void loop() {
 
 	//handle KNOB UPDATES
 	for(int i = 0; i < NUM_KNOBS; i++){
-		int newVal = analogRead(knobs[i].pin);
+		int analogVal = analogRead(knobs[i].pin);
+		if(analogVal > MAX_KNOB_VALUE) analogVal = MAX_KNOB_VALUE;
+		int newVal = MAX_KNOB_VALUE - analogVal;
 		if(abs(knobs[i].value - newVal) > KNOB_DIFF_VAL_THRESHOLD){
-			knobs[i].value = newVal;
+			knobs[i].value = newVal; //flip
 			if(knobs[i].value < 0) knobs[i].value = 0;
 			if(knobs[i].value > MAX_KNOB_VALUE ) knobs[i].value = MAX_KNOB_VALUE;
-			knobs[i].midiValue = (int)(float(MAX_KNOB_MIDI_VALUE * knobs[i].value) / float(MAX_KNOB_VALUE));
+			knobs[i].midiValue = (int)( float(MAX_KNOB_MIDI_VALUE * knobs[i].value) / float(MAX_KNOB_VALUE) );
 			if(knobs[i].midiValue > MAX_KNOB_MIDI_VALUE ) knobs[i].midiValue = MAX_KNOB_MIDI_VALUE;
-      #if (DEBUG_OVER_SERIAL)
-          Serial.printf("Knob %d : %d", i, knobs[i].midiValue); Serial.println();
-      #endif
+			#if(DEBUG_OVER_SERIAL)
+				Serial.printf("Knob %d : %d", i, knobs[i].midiValue); Serial.println();
+			#endif
 			#if(ENABLE_BLE_MIDI)
-			MIDI.sendControlChange(20 + i, knobs[i].midiValue, MIDI_CHANNEL_OUT);	//20 as undefined
+				MIDI.sendControlChange(20 + i, knobs[i].midiValue, MIDI_CHANNEL_OUT);	//20 as undefined
 			#endif
 			screenNeedsUpdate = true;
 		}
