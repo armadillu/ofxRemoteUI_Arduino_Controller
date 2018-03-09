@@ -79,7 +79,7 @@ unsigned char syncButtonID = 	1;
 unsigned int frameCount = 0; //count frames over time
 InputData data[NUM_PAGES]; 	//all the state for all the buttons & knobs across all "pages"
 ButtonData cfgButtons[NUM_CFG_BUTTONS]; //state for cfg buttons (side buttons)
-int currentPage = 0; 		//what "page" are we currently at
+unsigned int currentPage = 0; 		//what "page" are we currently at
 
 
 void setup(){
